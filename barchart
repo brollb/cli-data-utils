@@ -1,0 +1,62 @@
+#! /usr/bin/env python3
+import argparse
+import sys
+import matplotlib.pyplot as plt
+import re
+from os import path
+
+parser = argparse.ArgumentParser()
+parser.add_argument('infile', nargs='?')
+parser.add_argument('-o', '--output')
+parser.add_argument('-t', '--title')
+parser.add_argument('-x', '--xlabel', default='data')
+parser.add_argument('--ymax', type=int)
+parser.add_argument('-y', '--ylabel', default='frequency')
+parser.add_argument('--no-grid', default=False, action='store_true')
+parser.add_argument('--no-labels', default=False, action='store_true')
+parser.add_argument('--labels-first', default=False, action='store_true')
+args = parser.parse_args()
+
+args.no_grid
+
+input = sys.stdin if args.infile is None else args.infile
+data = [ line.strip().split(' ') for line in input ]
+if args.labels_first:
+    values = [ float(pt.pop(-1)) for pt in data ]
+else:
+    values = [ float(pt.pop(0)) for pt in data ]
+labels = [ ' '.join(pt) for pt in data ]
+
+if args.infile:
+    args.title = args.title or '.'.join(args.infile.split('.')[0:-1])
+else:
+    args.title = args.title or path.basename(sys.argv[0])
+
+args.output = args.output or re.sub(r'[^a-zA-Z0-9 ]', '', args.title).replace(' ', '-') + '.png'
+
+# Create the plot...
+fig, ax = plt.subplots()
+rects = ax.bar(labels, values)
+plt.title(args.title)
+plt.xlabel(args.xlabel)
+plt.ylabel(args.ylabel)
+plt.xticks(list(range(len(labels))), labels, fontsize=8, rotation=90) 
+
+if not args.no_labels:
+    for (i, rect) in enumerate(rects):
+        x = rect.get_x() + rect.get_width()/2.
+        if rect.get_height() > 75000:
+            y = 1.01*rect.get_height()
+        else:
+            y = 1.05*rect.get_height()
+
+        ax.text(x, y, str(values[i]), fontsize=8, ha='center', va='bottom')
+
+if args.ymax:
+    ax.set_ylim(top=args.ymax)
+
+fig.tight_layout()
+
+plt.grid(not args.no_grid)
+plt.savefig(args.output)
+print('generated ' + args.output)

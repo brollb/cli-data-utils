@@ -1,0 +1,50 @@
+#! /usr/bin/env python3
+import argparse
+import torch
+import sys
+import math
+from torch.nn.functional import kl_div
+
+parser = argparse.ArgumentParser()
+parser.add_argument('first', type=argparse.FileType('r'))
+parser.add_argument('second', type=argparse.FileType('r'))
+parser.add_argument('-v', '--verbose', action='store_true')
+parser.add_argument('-a', '--all', default=False, action='store_true')
+args = parser.parse_args()
+
+# Read the distributions from the files
+first_dist = dict([ (label, float(value)) for (value, label) in [ l.strip().split(' ') for l in args.first ] ])
+second_dist = dict([ (label, float(value)) for (value, label) in [ l.strip().split(' ') for l in args.second ] ])
+
+# Create tensors from each
+if args.all:
+    all_labels = list(set(first_dist.keys()).union(second_dist.keys()))
+else:
+    # KL Divergence is only defined if Q(x) = 0 implies P(x) = 0
+    # make this the case by only using the classes from Q
+    all_labels = list(set(first_dist.keys()).intersection(second_dist.keys()))
+
+first_t = torch.zeros(len(all_labels))
+second_t = torch.zeros(len(all_labels))
+
+for (i, label) in enumerate(all_labels):
+    first_t[i] = first_dist.get(label, 0)
+    second_t[i] = second_dist.get(label, 0)
+
+first_t = first_t/first_t.sum()
+second_t = second_t/second_t.sum()
+
+if args.verbose:
+    def round_to(num, precision):
+        return round(math.pow(10, precision) * num)/math.pow(10, precision)
+
+    print('all labels:', all_labels, file=sys.stderr)
+    print([ round_to(t.item(), 4) for t in list(first_t)], file=sys.stderr)
+    print([ round_to(t.item(), 4) for t in list(torch.log(first_t))], file=sys.stderr)
+    print([ round_to(t.item(), 4) for t in list(second_t)], file=sys.stderr)
+    print('sum of input probabilities', first_t.sum().item())
+    print('sum of target probabilities', second_t.sum().item())
+
+first_t = torch.log(first_t)
+
+print(kl_div(first_t, second_t).item())
